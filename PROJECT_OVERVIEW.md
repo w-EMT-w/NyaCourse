@@ -292,7 +292,7 @@ C:\classSchedule\build\app\outputs\bundle\release\app-release.aab
 正式发布前建议：
 
 - 当前 `applicationId` 已改为 `app.nyacourse.mobile`。
-- 当前 `pubspec.yaml` 版本为 `0.2.0+2`。
+- 当前 `pubspec.yaml` 版本为 `0.2.1+3`。
 - 检查 App 图标和启动图。
 - 隐私说明、权限说明见 `PRIVACY.md`。
 

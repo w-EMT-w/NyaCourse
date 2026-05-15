@@ -192,14 +192,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _ModuleTile(
           icon: Icons.info_outline,
           title: '关于',
-          summary: '版本 0.2.0+2',
+          summary: '版本 0.2.1+3',
           cardStyle: widget.cardStyle,
           themeSeed: widget.themeSeed,
           onTap: () => setState(() => _section = _SettingsSection.about),
         ),
         const SizedBox(height: 18),
         Text(
-          '版本 0.2.0+2 · 隐私说明见 PRIVACY.md',
+          '版本 0.2.1+3 · 隐私说明见 PRIVACY.md',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: Theme.of(context)
@@ -626,7 +626,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _GroupTitle('NyaCourse'),
-          const Text('版本 0.2.0+2'),
+          const Text('版本 0.2.1+3'),
           const SizedBox(height: 6),
           const Text('广东工业大学课表、成绩与考试安排工具。'),
           const SizedBox(height: 16),
@@ -899,10 +899,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _ChangelogVersion(
+                version: '0.2.1+3',
+                items: [
+                  '课表页顶部新增今天日期',
+                  '优化设置页为二级菜单',
+                  '关于页新增 GitHub 仓库和检查更新',
+                ],
+              ),
+              SizedBox(height: 14),
+              _ChangelogVersion(
                 version: '0.2.0+2',
                 items: [
                   '新增蓝色猫头悬浮球',
-                  '优化设置页为二级菜单',
                   '优化启动速度和背景图性能',
                   '完善数据更新时间和离线缓存提示',
                 ],

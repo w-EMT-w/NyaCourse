@@ -1282,6 +1282,7 @@ class _ScheduleTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final activeCourses =
         courses.where((course) => course.isActiveInWeek(selectedWeek)).toList();
+    final today = DateTime.now();
 
     return Column(
       children: [
@@ -1327,6 +1328,12 @@ class _ScheduleTab extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  _TodayPill(
+                    date: today,
+                    color: themeSeed,
+                    cardStyle: cardStyle,
                   ),
                 ],
               ),
@@ -1426,6 +1433,49 @@ class _ScheduleTab extends StatelessWidget {
       return '午安';
     }
     return '晚安';
+  }
+}
+
+class _TodayPill extends StatelessWidget {
+  const _TodayPill({
+    required this.date,
+    required this.color,
+    required this.cardStyle,
+  });
+
+  final DateTime date;
+  final Color color;
+  final CardStyleSettings cardStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = glassForegroundColor(context, cardStyle);
+    return GlassCard(
+      style: cardStyle,
+      themeSeed: color,
+      staticMode: true,
+      borderRadius: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.today_outlined, size: 16, color: color),
+          const SizedBox(width: 5),
+          Text(
+            '今天 ${date.month}月${date.day}日 ${_weekdayLabel(date.weekday)}',
+            maxLines: 1,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: foreground,
+                  fontWeight: FontWeight.w800,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _weekdayLabel(int day) {
+    return '周${const ['一', '二', '三', '四', '五', '六', '日'][day - 1]}';
   }
 }
 
