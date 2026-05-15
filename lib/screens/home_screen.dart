@@ -765,6 +765,7 @@ class _HomeScreenState extends State<HomeScreen> {
         savedUsername: _savedUsername,
         loadingAccount: _loadingSchedule,
         accountError: _error,
+        examHint: _settingsExamHint(),
         onLogin: _login,
         onClearAccount: _clearSavedAccount,
         importedCourseCount: _courses.length,
@@ -973,6 +974,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final nextMinute = DateTime(now.year, now.month, now.day, now.hour,
           now.minute + 1);
       delay = nextMinute.difference(now);
+    } else if (course.statusText == '上课中~') {
+      final nextMinute = DateTime(now.year, now.month, now.day, now.hour,
+          now.minute + 1);
+      delay = nextMinute.difference(now);
     } else {
       final tomorrow = DateTime(now.year, now.month, now.day + 1);
       delay = tomorrow.difference(now);
@@ -1002,12 +1007,35 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final todayCourses = _coursesForDate(now);
     for (final item in todayCourses) {
+      final course = item.$1;
+      final startsAt = item.$2;
+      final endsAt = _courseEndsAt(now, course);
+      if (endsAt == null || now.isBefore(startsAt) || !now.isBefore(endsAt)) {
+        continue;
+      }
+      final next = _nextCourseAfter(now, sameDayOnly: true);
+      return FloatingPetCourse(
+        statusText: '上课中~',
+        courseName: course.name,
+        location: course.location,
+        startTime: '${_clockLabel(startsAt)}-${_clockLabel(endsAt)}',
+        minutesLeft: -1,
+        dayLabel: '今天',
+        secondaryText: next == null
+            ? '今日剩余课程已完成'
+            : '下节课：今天 ${_clockLabel(next.$2)} ${next.$1.name}',
+        urgent: false,
+        themeColorValue: widget.themeSeed.toARGB32(),
+        cardBlur: _floatingPetCardBlur,
+      );
+    }
+    for (final item in todayCourses) {
       final startsAt = item.$2;
       if (startsAt.isBefore(now)) {
         continue;
       }
       return FloatingPetCourse(
-        statusText: '最近一节课',
+        statusText: '下一节课',
         courseName: item.$1.name,
         location: item.$1.location,
         startTime: _clockLabel(startsAt),
@@ -1020,7 +1048,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    final statusText = todayCourses.isEmpty ? '今天没有课' : '上完课了';
+    final statusText = todayCourses.isEmpty ? '今天没有课程' : '今日课程已完成~';
     for (var offset = 1; offset <= 21; offset++) {
       final date = DateTime(now.year, now.month, now.day + offset);
       final courses = _coursesForDate(date);
@@ -1028,7 +1056,7 @@ class _HomeScreenState extends State<HomeScreen> {
         continue;
       }
       final first = courses.first;
-      final dayLabel = offset == 1 ? '明天' : _weekdayLabel(date.weekday);
+      final dayLabel = _futureDayLabel(now, date, offset);
       return FloatingPetCourse(
         statusText: statusText,
         courseName: '',
@@ -1036,7 +1064,7 @@ class _HomeScreenState extends State<HomeScreen> {
         startTime: '',
         minutesLeft: -1,
         dayLabel: '',
-        secondaryText: '$dayLabel ${_clockLabel(first.$2)} ${first.$1.name}',
+        secondaryText: '下一节：$dayLabel ${_clockLabel(first.$2)} ${first.$1.name}',
         urgent: false,
         themeColorValue: widget.themeSeed.toARGB32(),
         cardBlur: _floatingPetCardBlur,
@@ -1050,11 +1078,59 @@ class _HomeScreenState extends State<HomeScreen> {
       startTime: '',
       minutesLeft: -1,
       dayLabel: '',
-      secondaryText: '',
+      secondaryText: '近期暂无课程安排',
       urgent: false,
       themeColorValue: widget.themeSeed.toARGB32(),
       cardBlur: _floatingPetCardBlur,
     );
+  }
+
+  DateTime? _courseEndsAt(DateTime date, Course course) {
+    final end = sectionTimes[course.endSection]?.end;
+    if (end == null) {
+      return null;
+    }
+    final parts = end.split(':');
+    if (parts.length != 2) {
+      return null;
+    }
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      int.tryParse(parts[0]) ?? 0,
+      int.tryParse(parts[1]) ?? 0,
+    );
+  }
+
+  (Course, DateTime)? _nextCourseAfter(
+    DateTime now, {
+    required bool sameDayOnly,
+  }) {
+    final limit = sameDayOnly ? 0 : 21;
+    for (var offset = 0; offset <= limit; offset++) {
+      final date = DateTime(now.year, now.month, now.day + offset);
+      final courses = _coursesForDate(date);
+      for (final item in courses) {
+        if (item.$2.isAfter(now)) {
+          return item;
+        }
+      }
+    }
+    return null;
+  }
+
+  String _futureDayLabel(DateTime now, DateTime date, int offset) {
+    if (offset == 1) {
+      return '明天';
+    }
+    if (offset == 2) {
+      return '后天';
+    }
+    if (offset <= 7) {
+      return '下${_weekdayLabel(date.weekday)}';
+    }
+    return '${date.month}月${date.day}日 ${_weekdayLabel(date.weekday)}';
   }
 
   List<(Course, DateTime)> _coursesForDate(DateTime date) {
@@ -1139,6 +1215,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _weekdayName(int day) =>
       const ['一', '二', '三', '四', '五', '六', '日'][day - 1];
+
+  String _settingsExamHint() {
+    final now = DateTime.now();
+    final upcoming = _exams
+        .where((exam) => !exam.time.isBefore(now))
+        .toList()
+      ..sort((a, b) => a.time.compareTo(b.time));
+    if (upcoming.isEmpty) {
+      return now.day.isEven ? '近期没有考试，睡大觉吧！' : '海阔天空，暂时没有考试～';
+    }
+    final exam = upcoming.first;
+    final today = DateTime(now.year, now.month, now.day);
+    final examDay = DateTime(exam.time.year, exam.time.month, exam.time.day);
+    final days = examDay.difference(today).inDays;
+    if (days <= 0) {
+      return '${exam.courseName}今天考试，加油！';
+    }
+    return '距离${exam.courseName}考试还有$days天，加油！';
+  }
 }
 
 class _FloatingNavigationBar extends StatelessWidget {

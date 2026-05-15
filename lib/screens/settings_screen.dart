@@ -24,6 +24,7 @@ class SettingsScreen extends StatefulWidget {
     required this.savedUsername,
     required this.loadingAccount,
     required this.accountError,
+    required this.examHint,
     required this.onLogin,
     required this.onClearAccount,
     required this.importedCourseCount,
@@ -60,6 +61,7 @@ class SettingsScreen extends StatefulWidget {
   final String? savedUsername;
   final bool loadingAccount;
   final String? accountError;
+  final String examHint;
   final VoidCallback onLogin;
   final VoidCallback onClearAccount;
   final int importedCourseCount;
@@ -111,95 +113,171 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   _SettingsSection? _section;
   bool _checkingUpdate = false;
+  final _homeScrollController = ScrollController();
+  final _detailScrollControllers = <_SettingsSection, ScrollController>{};
+
+  @override
+  void dispose() {
+    _homeScrollController.dispose();
+    for (final controller in _detailScrollControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final section = _section;
-    if (section == null) {
-      return _buildHome(context);
-    }
-    return _buildDetail(context, section);
+    return PopScope(
+      canPop: section == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _section != null) {
+          _returnToSettingsHome();
+        }
+      },
+      child: section == null ? _buildHome(context) : _buildDetail(context, section),
+    );
   }
 
   Widget _buildHome(BuildContext context) {
+    final greeting = _greetingText();
+    final slogan = _sloganText();
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
+      key: const PageStorageKey('settings-home'),
+      controller: _homeScrollController,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
       children: [
+        Center(
+          child: Image.asset(
+            'assets/settings_mascot.png',
+            height: 172,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+        const SizedBox(height: 8),
         Text(
-          '设置',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w800,
+          greeting,
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
               ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 4),
         Text(
-          '管理账号、提醒、外观和应用信息',
+          'NyaCourse',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: widget.themeSeed,
+                fontWeight: FontWeight.w900,
+              ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          slogan,
+          textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context)
                     .colorScheme
                     .onSurface
-                    .withValues(alpha: 0.58),
+                    .withValues(alpha: 0.62),
+                fontWeight: FontWeight.w600,
               ),
         ),
-        const SizedBox(height: 18),
-        _ModuleTile(
-          icon: Icons.person_outline,
-          title: '账号与同步',
-          summary: widget.loggedIn
-              ? '已登录'
-              : widget.savedUsername == null
-                  ? '未登录'
-                  : '已保存账号',
-          cardStyle: widget.cardStyle,
+        const SizedBox(height: 12),
+        GlassCard(
+          style: widget.cardStyle,
           themeSeed: widget.themeSeed,
-          onTap: () => setState(() => _section = _SettingsSection.account),
+          staticMode: true,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          borderRadius: 12,
+          child: Row(
+            children: [
+              Icon(Icons.event_available_outlined, color: widget.themeSeed),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.examHint,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ),
+            ],
+          ),
         ),
-        _ModuleTile(
-          icon: Icons.notifications_active_outlined,
-          title: '课表与提醒',
-          summary:
-              widget.reminderMinutes == 0 ? '提醒已关闭' : '提前 ${widget.reminderMinutes} 分钟',
-          cardStyle: widget.cardStyle,
-          themeSeed: widget.themeSeed,
-          onTap: () => setState(() => _section = _SettingsSection.schedule),
+        const SizedBox(height: 14),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          childAspectRatio: 1.45,
+          children: [
+            _ModuleGridItem(
+              icon: Icons.person_outline,
+              title: '账号与同步',
+              summary: widget.loggedIn
+                  ? '已登录'
+                  : widget.savedUsername == null
+                      ? '未登录'
+                      : '已保存账号',
+              cardStyle: widget.cardStyle,
+              themeSeed: widget.themeSeed,
+              onTap: () => _openSection(_SettingsSection.account),
+            ),
+            _ModuleGridItem(
+              icon: Icons.notifications_active_outlined,
+              title: '课表与提醒',
+              summary: widget.reminderMinutes == 0
+                  ? '提醒已关闭'
+                  : '提前 ${widget.reminderMinutes} 分钟',
+              cardStyle: widget.cardStyle,
+              themeSeed: widget.themeSeed,
+              onTap: () => _openSection(_SettingsSection.schedule),
+            ),
+            _ModuleGridItem(
+              icon: Icons.bubble_chart_outlined,
+              title: '悬浮球',
+              summary: widget.floatingPetEnabled ? '已开启' : '未开启',
+              cardStyle: widget.cardStyle,
+              themeSeed: widget.themeSeed,
+              onTap: () => _openSection(_SettingsSection.floatingPet),
+            ),
+            _ModuleGridItem(
+              icon: Icons.palette_outlined,
+              title: '外观主题',
+              summary: _themeModeLabel(widget.themeMode),
+              cardStyle: widget.cardStyle,
+              themeSeed: widget.themeSeed,
+              onTap: () => _openSection(_SettingsSection.appearance),
+            ),
+            _ModuleGridItem(
+              icon: Icons.storage_outlined,
+              title: '数据与缓存',
+              summary: widget.importedCourseCount == 0
+                  ? '暂无本地课表'
+                  : '课表 ${widget.importedCourseCount} 条',
+              cardStyle: widget.cardStyle,
+              themeSeed: widget.themeSeed,
+              onTap: () => _openSection(_SettingsSection.data),
+            ),
+            _ModuleGridItem(
+              icon: Icons.info_outline,
+              title: '关于',
+              summary: '版本 0.2.2+4',
+              cardStyle: widget.cardStyle,
+              themeSeed: widget.themeSeed,
+              onTap: () => _openSection(_SettingsSection.about),
+            ),
+          ],
         ),
-        _ModuleTile(
-          icon: Icons.bubble_chart_outlined,
-          title: '悬浮球',
-          summary: widget.floatingPetEnabled ? '已开启' : '未开启',
-          cardStyle: widget.cardStyle,
-          themeSeed: widget.themeSeed,
-          onTap: () => setState(() => _section = _SettingsSection.floatingPet),
-        ),
-        _ModuleTile(
-          icon: Icons.palette_outlined,
-          title: '外观主题',
-          summary: _themeModeLabel(widget.themeMode),
-          cardStyle: widget.cardStyle,
-          themeSeed: widget.themeSeed,
-          onTap: () => setState(() => _section = _SettingsSection.appearance),
-        ),
-        _ModuleTile(
-          icon: Icons.storage_outlined,
-          title: '数据与缓存',
-          summary: widget.importedCourseCount == 0
-              ? '暂无本地课表'
-              : '课表 ${widget.importedCourseCount} 条',
-          cardStyle: widget.cardStyle,
-          themeSeed: widget.themeSeed,
-          onTap: () => setState(() => _section = _SettingsSection.data),
-        ),
-        _ModuleTile(
-          icon: Icons.info_outline,
-          title: '关于',
-          summary: '版本 0.2.1+3',
-          cardStyle: widget.cardStyle,
-          themeSeed: widget.themeSeed,
-          onTap: () => setState(() => _section = _SettingsSection.about),
-        ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
         Text(
-          '版本 0.2.1+3 · 隐私说明见 PRIVACY.md',
+          '版本 0.2.2+4 · 隐私说明见 PRIVACY.md',
           textAlign: TextAlign.center,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: Theme.of(context)
@@ -214,13 +292,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildDetail(BuildContext context, _SettingsSection section) {
     return ListView(
+      key: PageStorageKey('settings-detail-${section.name}'),
+      controller: _detailScrollControllers.putIfAbsent(
+        section,
+        ScrollController.new,
+      ),
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
       children: [
         Row(
           children: [
             IconButton(
               tooltip: '返回设置',
-              onPressed: () => setState(() => _section = null),
+              onPressed: _returnToSettingsHome,
               icon: const Icon(Icons.arrow_back),
             ),
             Expanded(
@@ -626,7 +709,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _GroupTitle('NyaCourse'),
-          const Text('版本 0.2.1+3'),
+          const Text('版本 0.2.2+4'),
           const SizedBox(height: 6),
           const Text('广东工业大学课表、成绩与考试安排工具。'),
           const SizedBox(height: 16),
@@ -657,6 +740,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  void _openSection(_SettingsSection section) {
+    setState(() => _section = section);
+  }
+
+  void _returnToSettingsHome() {
+    setState(() => _section = null);
+  }
+
+  String _greetingText() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) {
+      return '早安～今天也要好好上课哦';
+    }
+    if (hour < 18) {
+      return '下午好～课上完了吗';
+    }
+    return DateTime.now().day.isEven
+        ? '辛苦了～今天的课都上完了吗'
+        : '夜深了，早点休息哦';
+  }
+
+  String _sloganText() {
+    return DateTime.now().day.isEven ? '认真上课，从记住课表开始' : '上课摸鱼两不误';
   }
 
   void _changeCardStyle({
@@ -899,6 +1007,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _ChangelogVersion(
+                version: '0.2.2+4',
+                items: [
+                  '设置首页新增角色图、问候语、slogan 和考试提示',
+                  '设置二级页面支持手机返回键返回上一级',
+                  '优化悬浮球课程状态文案，支持上课中提示',
+                ],
+              ),
+              SizedBox(height: 14),
+              _ChangelogVersion(
                 version: '0.2.1+3',
                 items: [
                   '课表页顶部新增今天日期',
@@ -966,8 +1083,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
-class _ModuleTile extends StatelessWidget {
-  const _ModuleTile({
+class _ModuleGridItem extends StatelessWidget {
+  const _ModuleGridItem({
     required this.icon,
     required this.title,
     required this.summary,
@@ -985,47 +1102,53 @@ class _ModuleTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: GlassCard(
-        style: cardStyle,
-        themeSeed: themeSeed,
-        staticMode: true,
-        padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
-        borderRadius: 10,
-        onTap: onTap,
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 19,
-              backgroundColor:
-                  Theme.of(context).colorScheme.primaryContainer,
-              foregroundColor:
-                  Theme.of(context).colorScheme.onPrimaryContainer,
-              child: Icon(icon, size: 21),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+    return GlassCard(
+      style: cardStyle,
+      themeSeed: themeSeed,
+      staticMode: true,
+      padding: const EdgeInsets.fromLTRB(12, 12, 10, 10),
+      borderRadius: 12,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor:
+                    Theme.of(context).colorScheme.primaryContainer,
+                foregroundColor:
+                    Theme.of(context).colorScheme.onPrimaryContainer,
+                child: Icon(icon, size: 18),
               ),
-            ),
-            Text(
-              summary,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.58),
-                  ),
-            ),
-            const SizedBox(width: 6),
-            const Icon(Icons.chevron_right),
-          ],
-        ),
+              const Spacer(),
+              const Icon(Icons.chevron_right, size: 20),
+            ],
+          ),
+          const Spacer(),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            summary,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurface
+                      .withValues(alpha: 0.58),
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+        ],
       ),
     );
   }

@@ -17,7 +17,7 @@ class FloatingPetCourse {
   });
 
   const FloatingPetCourse.emptyToday()
-      : statusText = '今天没有课',
+      : statusText = '今天没有课程',
         courseName = '',
         location = '',
         startTime = '',

@@ -311,7 +311,7 @@ class FloatingPetService : Service() {
             content.addView(text(course.timeLabel, 11.5f, bodyColor))
             content.addView(text(course.distanceLabel, 12f, accentColor, true))
             if (course.urgent) {
-                content.addView(text("快去上课了", 12f, accentColor, true))
+                content.addView(text("快到上课时间啦", 12f, accentColor, true))
             }
         }
         root.addView(
@@ -422,7 +422,7 @@ class FloatingPetService : Service() {
         companion object {
             fun todayEmpty() = PetCourse(
                 title = "",
-                statusText = "今天没有课",
+                statusText = "今天没有课程",
                 secondaryText = "",
                 location = "",
                 timeLabel = "",
@@ -438,7 +438,7 @@ class FloatingPetService : Service() {
                     return null
                 }
                 val statusText = intent.getStringExtra(EXTRA_STATUS_TEXT).orEmpty()
-                    .ifBlank { "今天没有课" }
+                    .ifBlank { "今天没有课程" }
                 val name = intent.getStringExtra(EXTRA_COURSE_NAME).orEmpty()
                 val themeColor = intent.getIntExtra(EXTRA_THEME_COLOR, Color.rgb(0, 107, 91))
                 val cardBlur = intent.getFloatExtra(EXTRA_CARD_BLUR, 20f)
@@ -458,9 +458,9 @@ class FloatingPetService : Service() {
                 val timeLabel = buildString {
                     if (dayLabel.isNotBlank()) {
                         append(dayLabel)
-                        append(" · ")
+                        append(" ")
                     }
-                    append(if (startTime.isBlank()) "开始时间未公布" else "开始时间 $startTime")
+                    append(if (startTime.isBlank()) "开始时间未公布" else startTime)
                 }
                 return PetCourse(
                     title = name,
@@ -469,7 +469,7 @@ class FloatingPetService : Service() {
                     location = if (location.isBlank()) "地点未公布" else location,
                     timeLabel = timeLabel,
                     distanceLabel = if (minutes >= 0) {
-                        "距离上课还有 ${formatDistance(minutes)}"
+                        "还有 ${formatDistance(minutes)}"
                     } else {
                         ""
                     },
