@@ -15,33 +15,6 @@
 - 支持课前提醒、本地通知。
 - 支持背景图片、主题色、自定义主题色、毛玻璃卡片、字体颜色设置。
 
-## 本机运行
-
-当前机器 Flutter SDK 位于 `C:\tools\flutter`。在本目录运行：
-
-```powershell
-C:\tools\flutter\bin\flutter.bat pub get
-C:\tools\flutter\bin\flutter.bat run
-```
-
-构建 Debug APK：
-
-```powershell
-C:\tools\flutter\bin\flutter.bat build apk --debug
-```
-
-构建 Release APK：
-
-```powershell
-C:\tools\flutter\bin\flutter.bat build apk --release
-```
-
-Release APK 输出：
-
-```text
-C:\classSchedule\build\app\outputs\flutter-apk\app-release.apk
-```
-
 ## 注意
 
 GDUT 当前入口会跳转到统一认证，再进入正方系统。若学校后续启用验证码、滑块、短信二次认证或更换统一认证参数，需要优先检查 `android/app/src/main/kotlin/com/example/gdut_class_schedule/MainActivity.kt` 和 `lib/services/gdut_jw_client.dart`。
