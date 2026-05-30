@@ -506,7 +506,7 @@ C:\classSchedule\build\app\outputs\bundle\release\app-release.aab
 当前下载地址：
 
 ```text
-https://github.com/w-EMT-w/NyaCourse/releases/download/v0.3.0/NyaCourse-v0.3.0.apk
+https://gitee.com/w-EMT-w/NyaCourse/releases/download/v0.3.0/app-release.apk
 ```
 
 如果以后要真正发新版本：
@@ -536,7 +536,7 @@ https://gitee.com/w-EMT-w/NyaCourse/raw/main/update.json?inline=false
   "build": 5,
   "title": "NyaCourse 0.3.0",
   "notes": "新增今日课程桌面小组件，并优化小组件离线刷新。",
-  "apkUrl": "https://github.com/w-EMT-w/NyaCourse/releases/download/v0.3.0/NyaCourse-v0.3.0.apk",
+  "apkUrl": "https://gitee.com/w-EMT-w/NyaCourse/releases/download/v0.3.0/app-release.apk",
   "fallbackUrl": "https://github.com/w-EMT-w/NyaCourse/releases/latest",
   "force": false
 }
