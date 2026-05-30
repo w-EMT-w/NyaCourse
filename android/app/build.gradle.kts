@@ -48,6 +48,9 @@ android {
                 storeFile = file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
             }
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -68,4 +71,5 @@ flutter {
 
 dependencies {
     implementation("androidx.dynamicanimation:dynamicanimation:1.0.0")
+    implementation("androidx.core:core-ktx:1.13.1")
 }

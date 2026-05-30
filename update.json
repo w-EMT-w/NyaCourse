@@ -1,0 +1,10 @@
+{
+  "version": "0.3.0",
+  "build": 5,
+  "title": "NyaCourse 0.3.0",
+  "notes": "新增今日课程桌面小组件，支持浅色、深色和纸张风格；小组件可使用本地课表离线计算，并在跨天、上课、下课、时间或时区变化时自动刷新；优化文字层级、教室信息显示和课程列表窗口。",
+  "apkUrl": "https://github.com/w-EMT-w/NyaCourse/releases/download/v0.3.0/NyaCourse-v0.3.0.apk",
+  "apkName": "NyaCourse-v0.3.0.apk",
+  "fallbackUrl": "https://github.com/w-EMT-w/NyaCourse/releases/latest",
+  "force": false
+}

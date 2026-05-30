@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 
 import 'package:gdut_class_schedule/main.dart';
 import 'package:gdut_class_schedule/models/term.dart';
@@ -8,7 +9,15 @@ void main() {
   testWidgets('shows schedule home', (WidgetTester tester) async {
     await tester.pumpWidget(const GdutScheduleApp());
 
-    expect(find.text('2026春季  第 10 周'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            widget.data != null &&
+            RegExp(r'^\d{4}(春季|秋季)  第 \d+ 周$').hasMatch(widget.data!),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('课表'), findsOneWidget);
     expect(find.text('设置'), findsOneWidget);
   });

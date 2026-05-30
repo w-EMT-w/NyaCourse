@@ -24,6 +24,7 @@ import '../services/gdut_jw_client.dart';
 import '../services/imported_schedule_store.dart';
 import '../services/reminder_service.dart';
 import '../services/schedule_importer.dart';
+import '../services/schedule_widget_service.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/data_status_header.dart';
 import '../widgets/week_schedule_view.dart';
@@ -51,7 +52,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final _reminderService = const ReminderService();
   final _credentialStore = const CredentialStore();
   final _importedScheduleStore = const ImportedScheduleStore();
@@ -60,6 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _backgroundImageCache = const BackgroundImageCache();
   final _academicDataStore = const AcademicDataStore();
   final _floatingPetService = const FloatingPetService();
+  final _scheduleWidgetService = const ScheduleWidgetService();
   final _imagePicker = ImagePicker();
   Timer? _floatingPetUpdateTimer;
   late Term _term;
@@ -80,6 +82,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _swipeWeekEnabled = true;
   bool _floatingPetEnabled = false;
   double _floatingPetCardBlur = 20;
+  bool _scheduleWidgetShowRoom = true;
+  ScheduleWidgetAppearanceMode _scheduleWidgetAppearanceMode =
+      ScheduleWidgetAppearanceMode.system;
   CardStyleSettings _cardStyle = CardStyleSettings.defaults;
   List<Color> _customThemeColors = const [];
   List<Course> _courses = const [];
@@ -89,9 +94,11 @@ class _HomeScreenState extends State<HomeScreen> {
   DataStatus _gradesStatus = const DataStatus();
   DataStatus _examsStatus = const DataStatus();
   Map<String, String> _courseNotes = const {};
+  DateTime? _lastScheduleWidgetSyncDate;
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _floatingPetUpdateTimer?.cancel();
     FloatingPetService.setClickHandler(null);
     super.dispose();
@@ -100,6 +107,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     FloatingPetService.setClickHandler(() async {
       await _syncFloatingPet();
     });
@@ -111,6 +119,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _restoreCachedGrades();
     _restoreCachedExams();
     _restoreLogin();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _syncScheduleWidgetIfDateChanged();
+    }
   }
 
   Future<void> _login() async {
@@ -159,6 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       });
       await _syncFloatingPet();
+      await _syncScheduleWidget();
       return true;
     } catch (_) {
       // Corrupt local imports should not block normal app startup.
@@ -186,10 +202,13 @@ class _HomeScreenState extends State<HomeScreen> {
       _cropBackgroundToScreen =
           settings.cropBackgroundToScreen ?? _cropBackgroundToScreen;
       _swipeWeekEnabled = settings.swipeWeekEnabled ?? _swipeWeekEnabled;
-      _floatingPetEnabled =
-          settings.floatingPetEnabled ?? _floatingPetEnabled;
+      _floatingPetEnabled = settings.floatingPetEnabled ?? _floatingPetEnabled;
       _floatingPetCardBlur =
           settings.floatingPetCardBlur ?? _floatingPetCardBlur;
+      _scheduleWidgetShowRoom =
+          settings.scheduleWidgetShowRoom ?? _scheduleWidgetShowRoom;
+      _scheduleWidgetAppearanceMode = settings.scheduleWidgetAppearanceMode ??
+          _scheduleWidgetAppearanceMode;
       _cardStyle = settings.cardStyle ?? _cardStyle;
       _customThemeColors =
           (settings.customThemeColorValues ?? const []).map(Color.new).toList();
@@ -199,6 +218,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (_floatingPetEnabled && _courses.isNotEmpty) {
       await _syncFloatingPet();
+    }
+    if (_courses.isNotEmpty) {
+      await _syncScheduleWidget();
     }
     await _ensureBackgroundDisplayImage();
   }
@@ -212,6 +234,8 @@ class _HomeScreenState extends State<HomeScreen> {
       swipeWeekEnabled: _swipeWeekEnabled,
       floatingPetEnabled: _floatingPetEnabled,
       floatingPetCardBlur: _floatingPetCardBlur,
+      scheduleWidgetShowRoom: _scheduleWidgetShowRoom,
+      scheduleWidgetAppearanceMode: _scheduleWidgetAppearanceMode,
       cardStyle: _cardStyle,
       customThemeColorValues:
           _customThemeColors.map((color) => color.toARGB32()).toList(),
@@ -322,6 +346,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await _importedScheduleStore.saveCached(courses);
       await _rescheduleReminders();
       await _syncFloatingPet();
+      await _syncScheduleWidget();
     } catch (error) {
       final hasCache = await _restoreCachedSchedule(includeImported: false);
       setState(() {
@@ -350,6 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _examsStatus = const DataStatus();
       _error = null;
     });
+    await _syncScheduleWidget();
   }
 
   Future<void> _refreshSchedule() async {
@@ -373,6 +399,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await _importedScheduleStore.saveCached(courses);
       await _rescheduleReminders();
       await _syncFloatingPet();
+      await _syncScheduleWidget();
     } catch (error) {
       final hasCache = await _restoreCachedSchedule(includeImported: false);
       setState(() {
@@ -408,11 +435,12 @@ class _HomeScreenState extends State<HomeScreen> {
           await _academicDataStore.readGrades(_gradeTerm.gdutTermCode);
       var hasCache = false;
       if (mounted && cached.isNotEmpty) {
-        final updatedAt =
-            await _academicDataStore.readGradesUpdatedAt(_gradeTerm.gdutTermCode);
+        final updatedAt = await _academicDataStore
+            .readGradesUpdatedAt(_gradeTerm.gdutTermCode);
         setState(() {
           _grades = cached;
-          _gradesStatus = DataStatus(lastUpdated: updatedAt, offlineCache: true);
+          _gradesStatus =
+              DataStatus(lastUpdated: updatedAt, offlineCache: true);
         });
         hasCache = true;
       }
@@ -525,6 +553,7 @@ class _HomeScreenState extends State<HomeScreen> {
       });
       await _rescheduleReminders();
       await _syncFloatingPet();
+      await _syncScheduleWidget();
 
       if (!mounted) {
         return;
@@ -814,6 +843,19 @@ class _HomeScreenState extends State<HomeScreen> {
         floatingPetEnabled: _floatingPetEnabled,
         onFloatingPetEnabledChanged: _setFloatingPetEnabled,
         floatingPetCardBlur: _floatingPetCardBlur,
+        scheduleWidgetShowRoom: _scheduleWidgetShowRoom,
+        onScheduleWidgetShowRoomChanged: (value) async {
+          setState(() => _scheduleWidgetShowRoom = value);
+          await _saveAppSettings();
+          await _syncScheduleWidget();
+        },
+        scheduleWidgetAppearanceMode: _scheduleWidgetAppearanceMode,
+        onScheduleWidgetAppearanceModeChanged: (value) async {
+          setState(() => _scheduleWidgetAppearanceMode = value);
+          await _saveAppSettings();
+          await _syncScheduleWidget();
+        },
+        onScheduleWidgetRefresh: _syncScheduleWidget,
         onFloatingPetCardBlurChanged: (value) async {
           setState(() => _floatingPetCardBlur = value);
           await _saveAppSettings();
@@ -913,11 +955,45 @@ class _HomeScreenState extends State<HomeScreen> {
       swipeWeekEnabled: _swipeWeekEnabled,
       floatingPetEnabled: _floatingPetEnabled,
       floatingPetCardBlur: _floatingPetCardBlur,
+      scheduleWidgetShowRoom: _scheduleWidgetShowRoom,
+      scheduleWidgetAppearanceMode: _scheduleWidgetAppearanceMode,
       cardStyle: _cardStyle,
       customThemeColorValues:
           _customThemeColors.map((color) => color.toARGB32()).toList(),
       themeSeedValue: themeSeed.toARGB32(),
     );
+    await _syncScheduleWidget();
+  }
+
+  Future<void> _syncScheduleWidget() async {
+    try {
+      final now = DateTime.now();
+      final data = _scheduleWidgetService.buildData(
+        courses: _courses,
+        term: _term,
+        now: now,
+        appThemeMode: widget.themeMode,
+        appearanceMode: _scheduleWidgetAppearanceMode,
+        showRoom: _scheduleWidgetShowRoom,
+      );
+      await _scheduleWidgetService.sync(data);
+      _lastScheduleWidgetSyncDate = DateTime(now.year, now.month, now.day);
+    } catch (_) {
+      // Widget sync should never block the main schedule flow.
+    }
+  }
+
+  Future<void> _syncScheduleWidgetIfDateChanged() async {
+    if (_courses.isEmpty) {
+      return;
+    }
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (_lastScheduleWidgetSyncDate != null &&
+        _lastScheduleWidgetSyncDate == today) {
+      return;
+    }
+    await _syncScheduleWidget();
   }
 
   Future<DateTime?> _scheduleCacheUpdatedAt(bool includeImported) async {
@@ -971,12 +1047,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final now = DateTime.now();
     Duration delay;
     if (course.minutesLeft >= 0 && course.dayLabel == '今天') {
-      final nextMinute = DateTime(now.year, now.month, now.day, now.hour,
-          now.minute + 1);
+      final nextMinute =
+          DateTime(now.year, now.month, now.day, now.hour, now.minute + 1);
       delay = nextMinute.difference(now);
     } else if (course.statusText == '上课中~') {
-      final nextMinute = DateTime(now.year, now.month, now.day, now.hour,
-          now.minute + 1);
+      final nextMinute =
+          DateTime(now.year, now.month, now.day, now.hour, now.minute + 1);
       delay = nextMinute.difference(now);
     } else {
       final tomorrow = DateTime(now.year, now.month, now.day + 1);
@@ -1064,7 +1140,8 @@ class _HomeScreenState extends State<HomeScreen> {
         startTime: '',
         minutesLeft: -1,
         dayLabel: '',
-        secondaryText: '下一节：$dayLabel ${_clockLabel(first.$2)} ${first.$1.name}',
+        secondaryText:
+            '下一节：$dayLabel ${_clockLabel(first.$2)} ${first.$1.name}',
         urgent: false,
         themeColorValue: widget.themeSeed.toARGB32(),
         cardBlur: _floatingPetCardBlur,
@@ -1218,9 +1295,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _settingsExamHint() {
     final now = DateTime.now();
-    final upcoming = _exams
-        .where((exam) => !exam.time.isBefore(now))
-        .toList()
+    final upcoming = _exams.where((exam) => !exam.time.isBefore(now)).toList()
       ..sort((a, b) => a.time.compareTo(b.time));
     if (upcoming.isEmpty) {
       return now.day.isEven ? '近期没有考试，睡大觉吧！' : '海阔天空，暂时没有考试～';
@@ -1443,12 +1518,13 @@ class _ScheduleTab extends StatelessWidget {
                           '${term.displayName}  第 $selectedWeek 周',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                    color:
-                                        glassForegroundColor(context, cardStyle),
-                                  ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: glassForegroundColor(context, cardStyle),
+                              ),
                         ),
                         const SizedBox(height: 2),
                         DataStatusText(status: status),
@@ -1518,8 +1594,8 @@ class _ScheduleTab extends StatelessWidget {
 
   String _greeting() {
     final hour = DateTime.now().hour;
-    if (hour < 6) {
-      return '夜安';
+    if (hour < 5) {
+      return '晚安';
     }
     if (hour < 12) {
       return '早安';

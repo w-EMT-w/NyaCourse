@@ -17,9 +17,11 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.util.Base64
+import androidx.core.content.FileProvider
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 import java.io.BufferedReader
 import java.io.InputStream
 import java.io.InputStreamReader
@@ -70,6 +72,24 @@ class MainActivity : FlutterActivity() {
                                 ?: emptyList(),
                         )
                         result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "gdut_update")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "canInstallPackages" -> {
+                        result.success(canInstallPackages())
+                    }
+                    "openInstallPermissionSettings" -> {
+                        openInstallPermissionSettings()
+                        result.success(null)
+                    }
+                    "installApk" -> {
+                        val path = call.argument<String>("path").orEmpty()
+                        installApk(path, result)
                     }
                     else -> result.notImplemented()
                 }
@@ -227,6 +247,49 @@ class MainActivity : FlutterActivity() {
 
     private fun canDrawPetOverlay(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
+    }
+
+    private fun canInstallPackages(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            packageManager.canRequestPackageInstalls()
+    }
+
+    private fun openInstallPermissionSettings() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                Uri.parse("package:$packageName"),
+            )
+            startActivity(intent)
+        }
+    }
+
+    private fun installApk(path: String, result: MethodChannel.Result) {
+        val apk = File(path)
+        if (!apk.exists()) {
+            result.error("APK_NOT_FOUND", "安装包不存在", null)
+            return
+        }
+        if (!canInstallPackages()) {
+            result.error("INSTALL_PERMISSION", "需要允许安装未知应用", null)
+            return
+        }
+        try {
+            val uri = FileProvider.getUriForFile(
+                this,
+                "$packageName.fileprovider",
+                apk,
+            )
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(intent)
+            result.success(null)
+        } catch (error: Throwable) {
+            result.error("INSTALL_FAILED", error.message ?: "无法打开安装器", null)
+        }
     }
 
     private fun runGdutRequest(

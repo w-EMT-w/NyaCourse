@@ -4,6 +4,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 enum CardTint { pureWhite, warmWhite, lavender, none }
 
+enum ScheduleWidgetAppearanceMode { system, light, dark, paper }
+
 class CardStyleSettings {
   const CardStyleSettings({
     required this.blur,
@@ -36,6 +38,8 @@ class SavedAppSettings {
     this.swipeWeekEnabled,
     this.floatingPetEnabled,
     this.floatingPetCardBlur,
+    this.scheduleWidgetShowRoom,
+    this.scheduleWidgetAppearanceMode,
     this.cardStyle,
     this.customThemeColorValues,
     this.themeSeedValue,
@@ -48,6 +52,8 @@ class SavedAppSettings {
   final bool? swipeWeekEnabled;
   final bool? floatingPetEnabled;
   final double? floatingPetCardBlur;
+  final bool? scheduleWidgetShowRoom;
+  final ScheduleWidgetAppearanceMode? scheduleWidgetAppearanceMode;
   final CardStyleSettings? cardStyle;
   final List<int>? customThemeColorValues;
   final int? themeSeedValue;
@@ -79,6 +85,10 @@ class AppSettingsStore {
       swipeWeekEnabled: decoded['swipeWeekEnabled'] as bool?,
       floatingPetEnabled: decoded['floatingPetEnabled'] as bool?,
       floatingPetCardBlur: _doubleOf(decoded['floatingPetCardBlur']),
+      scheduleWidgetShowRoom: decoded['scheduleWidgetShowRoom'] as bool?,
+      scheduleWidgetAppearanceMode: _scheduleWidgetAppearanceModeOf(
+        decoded['scheduleWidgetAppearanceMode'],
+      ),
       cardStyle: _cardStyleOf(decoded['cardStyle']),
       customThemeColorValues: _intListOf(decoded['customThemeColorValues']),
       themeSeedValue: _intOf(decoded['themeSeedValue']),
@@ -93,6 +103,8 @@ class AppSettingsStore {
     required bool swipeWeekEnabled,
     required bool floatingPetEnabled,
     required double floatingPetCardBlur,
+    required bool scheduleWidgetShowRoom,
+    required ScheduleWidgetAppearanceMode scheduleWidgetAppearanceMode,
     required CardStyleSettings cardStyle,
     required List<int> customThemeColorValues,
     required int themeSeedValue,
@@ -107,6 +119,8 @@ class AppSettingsStore {
         'swipeWeekEnabled': swipeWeekEnabled,
         'floatingPetEnabled': floatingPetEnabled,
         'floatingPetCardBlur': floatingPetCardBlur,
+        'scheduleWidgetShowRoom': scheduleWidgetShowRoom,
+        'scheduleWidgetAppearanceMode': scheduleWidgetAppearanceMode.name,
         'customThemeColorValues': customThemeColorValues,
         'themeSeedValue': themeSeedValue,
         'cardStyle': {
@@ -141,6 +155,18 @@ class AppSettingsStore {
           value['borderGlow'] as bool? ?? CardStyleSettings.defaults.borderGlow,
       fontColorValue: _intOf(value['fontColorValue']),
     );
+  }
+
+  static ScheduleWidgetAppearanceMode? _scheduleWidgetAppearanceModeOf(
+    Object? value,
+  ) {
+    final name = value?.toString();
+    for (final mode in ScheduleWidgetAppearanceMode.values) {
+      if (mode.name == name) {
+        return mode;
+      }
+    }
+    return null;
   }
 
   static double? _doubleOf(Object? value) {

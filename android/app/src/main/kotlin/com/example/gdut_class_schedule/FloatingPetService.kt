@@ -1,8 +1,5 @@
 package com.example.gdut_class_schedule
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -42,6 +39,7 @@ class FloatingPetService : Service() {
     private var downWindowX = 0
     private var downWindowY = 0
     private var dragged = false
+    private var cardVisibleOnDown = false
     private var attachedSide = Side.RIGHT
     private var course = PetCourse.todayEmpty()
 
@@ -58,7 +56,6 @@ class FloatingPetService : Service() {
             stopSelf()
             return
         }
-        startAsForegroundService()
         createPet()
         startIdleAnimation()
     }
@@ -126,6 +123,7 @@ class FloatingPetService : Service() {
                 downWindowX = fullX
                 downWindowY = petParams.y
                 dragged = false
+                cardVisibleOnDown = cardView != null
                 return true
             }
             MotionEvent.ACTION_MOVE -> {
@@ -144,8 +142,12 @@ class FloatingPetService : Service() {
                 prefs.edit().putInt(KEY_Y, petParams.y).apply()
                 if (!dragged) {
                     playClickBounce()
-                    sendBroadcast(Intent(ACTION_PET_CLICK).setPackage(packageName))
-                    toggleCard()
+                    if (cardVisibleOnDown) {
+                        hideCard()
+                    } else {
+                        sendBroadcast(Intent(ACTION_PET_CLICK).setPackage(packageName))
+                        showCard()
+                    }
                 }
                 snapToNearestSide()
                 view.performClick()
@@ -355,35 +357,6 @@ class FloatingPetService : Service() {
         }
     }
 
-    private fun startAsForegroundService() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    PET_CHANNEL_ID,
-                    "悬浮球",
-                    NotificationManager.IMPORTANCE_MIN,
-                ).apply {
-                    setShowBadge(false)
-                },
-            )
-        }
-        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, PET_CHANNEL_ID)
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-        }
-        val notification = builder
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("NyaCourse 悬浮球运行中")
-            .setContentText("点击悬浮球查看课程提醒")
-            .setOngoing(true)
-            .setPriority(Notification.PRIORITY_MIN)
-            .build()
-        startForeground(PET_NOTIFICATION_ID, notification)
-    }
-
     private fun canDrawOverlay(): Boolean {
         return Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)
     }
@@ -495,8 +468,6 @@ class FloatingPetService : Service() {
         const val EXTRA_URGENT = "urgent"
         const val EXTRA_THEME_COLOR = "themeColorValue"
         const val EXTRA_CARD_BLUR = "cardBlur"
-        private const val PET_CHANNEL_ID = "floating_pet"
-        private const val PET_NOTIFICATION_ID = 2401
         private const val KEY_Y = "y"
         private const val KEY_SIDE = "side"
 

@@ -1,9 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/app_settings_store.dart';
@@ -12,6 +17,7 @@ import '../widgets/glass_card.dart';
 enum _SettingsSection {
   account,
   schedule,
+  scheduleWidget,
   floatingPet,
   appearance,
   data,
@@ -45,6 +51,11 @@ class SettingsScreen extends StatefulWidget {
     required this.floatingPetEnabled,
     required this.onFloatingPetEnabledChanged,
     required this.floatingPetCardBlur,
+    required this.scheduleWidgetShowRoom,
+    required this.onScheduleWidgetShowRoomChanged,
+    required this.scheduleWidgetAppearanceMode,
+    required this.onScheduleWidgetAppearanceModeChanged,
+    required this.onScheduleWidgetRefresh,
     required this.onFloatingPetCardBlurChanged,
     required this.cardStyle,
     required this.onPickBackgroundImage,
@@ -82,6 +93,12 @@ class SettingsScreen extends StatefulWidget {
   final bool floatingPetEnabled;
   final ValueChanged<bool> onFloatingPetEnabledChanged;
   final double floatingPetCardBlur;
+  final bool scheduleWidgetShowRoom;
+  final ValueChanged<bool> onScheduleWidgetShowRoomChanged;
+  final ScheduleWidgetAppearanceMode scheduleWidgetAppearanceMode;
+  final ValueChanged<ScheduleWidgetAppearanceMode>
+      onScheduleWidgetAppearanceModeChanged;
+  final Future<void> Function() onScheduleWidgetRefresh;
   final ValueChanged<double> onFloatingPetCardBlurChanged;
   final CardStyleSettings cardStyle;
   final VoidCallback onPickBackgroundImage;
@@ -98,10 +115,14 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _githubUrl = 'https://github.com/w-EMT-w/NyaCourse';
-  static const _latestReleaseApi =
-      'https://api.github.com/repos/w-EMT-w/NyaCourse/releases/latest';
   static const _latestReleasePage =
       'https://github.com/w-EMT-w/NyaCourse/releases/latest';
+  static const _updateJsonUrls = [
+    'https://raw.githubusercontent.com/w-EMT-w/NyaCourse/main/update.json',
+    'https://gitee.com/w-EMT-w/NyaCourse/raw/main/update.json',
+    'https://gitee.com/w-EMT-w/NyaCourse/raw/main/update.json?inline=false',
+  ];
+  static const _updateChannel = MethodChannel('gdut_update');
 
   static const _themeColors = [
     Color(0xff006b5b),
@@ -135,27 +156,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _returnToSettingsHome();
         }
       },
-      child: section == null ? _buildHome(context) : _buildDetail(context, section),
+      child: section == null
+          ? _buildHome(context)
+          : _buildDetail(context, section),
     );
   }
 
   Widget _buildHome(BuildContext context) {
     final greeting = _greetingText();
     final slogan = _sloganText();
+    final screenSize = MediaQuery.sizeOf(context);
+    final mascotHeight = (screenSize.height * 0.34).clamp(240.0, 330.0);
+    final mascotWidth = (screenSize.width * 1.28).clamp(420.0, 560.0);
     return ListView(
       key: const PageStorageKey('settings-home'),
       controller: _homeScrollController,
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 112),
       children: [
-        Center(
-          child: Image.asset(
-            'assets/settings_mascot.png',
-            height: 172,
-            fit: BoxFit.contain,
-            filterQuality: FilterQuality.medium,
+        SizedBox(
+          height: mascotHeight,
+          child: Center(
+            child: OverflowBox(
+              maxWidth: mascotWidth,
+              maxHeight: mascotHeight,
+              child: Image.asset(
+                'assets/settings_mascot.png',
+                width: mascotWidth,
+                height: mascotHeight,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.medium,
+              ),
+            ),
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 2),
         Text(
           greeting,
           textAlign: TextAlign.center,
@@ -248,6 +282,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onTap: () => _openSection(_SettingsSection.floatingPet),
             ),
             _ModuleGridItem(
+              icon: Icons.widgets_outlined,
+              title: '桌面小组件',
+              summary: _scheduleWidgetAppearanceLabel(
+                widget.scheduleWidgetAppearanceMode,
+              ),
+              cardStyle: widget.cardStyle,
+              themeSeed: widget.themeSeed,
+              onTap: () => _openSection(_SettingsSection.scheduleWidget),
+            ),
+            _ModuleGridItem(
               icon: Icons.palette_outlined,
               title: '外观主题',
               summary: _themeModeLabel(widget.themeMode),
@@ -320,6 +364,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         switch (section) {
           _SettingsSection.account => _accountPage(context),
           _SettingsSection.schedule => _schedulePage(context),
+          _SettingsSection.scheduleWidget => _scheduleWidgetPage(context),
           _SettingsSection.floatingPet => _floatingPetPage(context),
           _SettingsSection.appearance => _appearancePage(context),
           _SettingsSection.data => _dataPage(context),
@@ -339,7 +384,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           const _GroupTitle('账号状态'),
           _InfoRow(
-            icon: widget.loggedIn ? Icons.verified_user_outlined : Icons.person_add_alt_1,
+            icon: widget.loggedIn
+                ? Icons.verified_user_outlined
+                : Icons.person_add_alt_1,
             title: widget.loggedIn ? '已登录' : '未登录',
             subtitle: widget.accountError != null
                 ? widget.accountError!
@@ -410,8 +457,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: '提醒时间',
             minLabel: '关闭',
             maxLabel: '60 分钟',
-            valueLabel:
-                widget.reminderMinutes == 0 ? '关闭' : '${widget.reminderMinutes} 分钟',
+            valueLabel: widget.reminderMinutes == 0
+                ? '关闭'
+                : '${widget.reminderMinutes} 分钟',
             min: 0,
             max: 60,
             divisions: 12,
@@ -436,9 +484,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             contentPadding: EdgeInsets.zero,
             title: const Text('启用蓝色猫头悬浮球'),
             subtitle: Text(
-              widget.floatingPetEnabled
-                  ? '显示课程提醒，可拖动吸边'
-                  : '首次开启需要手动授予悬浮窗权限',
+              widget.floatingPetEnabled ? '显示课程提醒，可拖动吸边' : '首次开启需要手动授予悬浮窗权限',
             ),
             value: widget.floatingPetEnabled,
             onChanged: widget.onFloatingPetEnabledChanged,
@@ -453,6 +499,69 @@ class _SettingsScreenState extends State<SettingsScreen> {
             divisions: 30,
             value: widget.floatingPetCardBlur,
             onChanged: widget.onFloatingPetCardBlurChanged,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _scheduleWidgetPage(BuildContext context) {
+    return GlassCard(
+      style: widget.cardStyle,
+      themeSeed: widget.themeSeed,
+      staticMode: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _GroupTitle('桌面小组件'),
+          const _InfoRow(
+            icon: Icons.dashboard_customize_outlined,
+            title: '可添加到桌面的课表卡片',
+            subtitle: '桌面小组件列表里只保留“今日课程”中尺寸卡片。',
+          ),
+          const SizedBox(height: 10),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('显示教室'),
+            subtitle: const Text('关闭后小组件只显示课程名和时间'),
+            value: widget.scheduleWidgetShowRoom,
+            onChanged: widget.onScheduleWidgetShowRoomChanged,
+          ),
+          const SizedBox(height: 12),
+          const _SubTitle('外观模式'),
+          const SizedBox(height: 8),
+          SegmentedButton<ScheduleWidgetAppearanceMode>(
+            segments: const [
+              ButtonSegment(
+                value: ScheduleWidgetAppearanceMode.system,
+                icon: Icon(Icons.brightness_auto),
+                label: Text('跟随'),
+              ),
+              ButtonSegment(
+                value: ScheduleWidgetAppearanceMode.light,
+                icon: Icon(Icons.light_mode_outlined),
+                label: Text('浅色'),
+              ),
+              ButtonSegment(
+                value: ScheduleWidgetAppearanceMode.dark,
+                icon: Icon(Icons.dark_mode_outlined),
+                label: Text('深色'),
+              ),
+              ButtonSegment(
+                value: ScheduleWidgetAppearanceMode.paper,
+                icon: Icon(Icons.article_outlined),
+                label: Text('纸张'),
+              ),
+            ],
+            selected: {widget.scheduleWidgetAppearanceMode},
+            onSelectionChanged: (value) =>
+                widget.onScheduleWidgetAppearanceModeChanged(value.first),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.tonalIcon(
+            onPressed: widget.onScheduleWidgetRefresh,
+            icon: const Icon(Icons.refresh),
+            label: const Text('立即刷新小组件'),
           ),
         ],
       ),
@@ -685,9 +794,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _InfoRow(
             icon: Icons.security_outlined,
             title: '账号凭据',
-            subtitle: widget.savedUsername == null
-                ? '未保存账号'
-                : '账号仅保存在系统安全存储中',
+            subtitle: widget.savedUsername == null ? '未保存账号' : '账号仅保存在系统安全存储中',
           ),
           const SizedBox(height: 10),
           const _InfoRow(
@@ -728,7 +835,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _ActionRow(
             icon: Icons.system_update_alt,
             title: '检查更新',
-            subtitle: _checkingUpdate ? '正在检查...' : '从 GitHub Releases 获取最新版本',
+            subtitle: _checkingUpdate ? '正在检查...' : '从 GitHub 更新源获取最新版',
             onTap: _checkingUpdate ? null : _checkForUpdates,
           ),
           const Divider(height: 24),
@@ -752,15 +859,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   String _greetingText() {
     final hour = DateTime.now().hour;
+    if (hour < 5) {
+      return '夜深了，早点休息哦';
+    }
     if (hour < 12) {
       return '早安～今天也要好好上课哦';
     }
     if (hour < 18) {
       return '下午好～课上完了吗';
     }
-    return DateTime.now().day.isEven
-        ? '辛苦了～今天的课都上完了吗'
-        : '夜深了，早点休息哦';
+    return DateTime.now().day.isEven ? '辛苦了～今天的课都上完了吗' : '夜深了，早点休息哦';
   }
 
   String _sloganText() {
@@ -780,8 +888,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         opacity: opacity ?? widget.cardStyle.opacity,
         tint: tint ?? widget.cardStyle.tint,
         borderGlow: borderGlow ?? widget.cardStyle.borderGlow,
-        fontColorValue:
-            clearFontColor ? null : fontColorValue ?? widget.cardStyle.fontColorValue,
+        fontColorValue: clearFontColor
+            ? null
+            : fontColorValue ?? widget.cardStyle.fontColorValue,
       ),
     );
   }
@@ -805,51 +914,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
     setState(() => _checkingUpdate = true);
     try {
       final info = await PackageInfo.fromPlatform();
-      final response = await http.get(
-        Uri.parse(_latestReleaseApi),
-        headers: {'Accept': 'application/vnd.github+json'},
-      ).timeout(const Duration(seconds: 12));
-      if (response.statusCode == 404) {
-        _showSnackBar('GitHub 还没有发布 Release');
-        return;
-      }
-      if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}');
-      }
-      final decoded = jsonDecode(response.body);
-      if (decoded is! Map) {
-        throw const FormatException('Invalid release response');
-      }
-      final tag = decoded['tag_name']?.toString() ?? '';
-      final latest = _normalizeVersion(tag);
+      final update = await _fetchUpdateInfo();
       final current = _normalizeVersion(info.version);
-      final body = decoded['body']?.toString() ?? '';
-      final releaseUrl =
-          decoded['html_url']?.toString().isNotEmpty == true
-              ? decoded['html_url'].toString()
-              : _latestReleasePage;
-      if (latest.isNotEmpty && _compareVersion(latest, current) > 0) {
+      final currentBuild = int.tryParse(info.buildNumber) ?? 0;
+      if (_isNewerUpdate(update, current, currentBuild)) {
         if (!mounted) {
           return;
         }
         await showDialog<void>(
           context: context,
           builder: (context) => AlertDialog(
-            title: Text('发现新版本 $tag'),
+            title: Text(update.title),
             content: SingleChildScrollView(
-              child: Text(body.trim().isEmpty ? '可以前往 GitHub 下载最新版。' : body),
+              child: Text(
+                update.notes.trim().isEmpty ? '可以直接下载安装最新版。' : update.notes,
+              ),
             ),
             actions: [
+              if (!update.force)
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('稍后'),
+                ),
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('稍后'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _openUrl(update.fallbackUrl);
+                },
+                child: const Text('浏览器打开'),
               ),
               FilledButton(
                 onPressed: () {
                   Navigator.of(context).pop();
-                  _openUrl(releaseUrl);
+                  _downloadAndInstallUpdate(update);
                 },
-                child: const Text('前往下载'),
+                child: const Text('下载并安装'),
               ),
             ],
           ),
@@ -858,7 +957,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _showSnackBar('已经是最新版本');
       }
     } catch (_) {
-      _showSnackBar('检查更新失败，请稍后再试');
+      if (!mounted) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('检查更新失败'),
+          content: const Text('更新源暂时不可用，可以稍后再试，或打开发布页手动下载。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('稍后'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _openUrl(_latestReleasePage);
+              },
+              child: const Text('打开发布页'),
+            ),
+          ],
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() => _checkingUpdate = false);
@@ -866,8 +987,182 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<_UpdateInfo> _fetchUpdateInfo() async {
+    Object? lastError;
+    for (final url in _updateJsonUrls) {
+      try {
+        final response = await http.get(
+          Uri.parse(url),
+          headers: const {
+            'Accept': 'application/json,text/plain,*/*',
+            'User-Agent': 'Mozilla/5.0 NyaCourse',
+          },
+        ).timeout(const Duration(seconds: 30));
+        if (response.statusCode != 200) {
+          throw Exception('HTTP ${response.statusCode}');
+        }
+        final decoded = jsonDecode(response.body);
+        if (decoded is! Map) {
+          throw const FormatException('Invalid update response');
+        }
+        return _UpdateInfo.fromJson(Map<String, dynamic>.from(decoded));
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw Exception('Update source unavailable: $lastError');
+  }
+
+  bool _isNewerUpdate(
+    _UpdateInfo update,
+    String currentVersion,
+    int currentBuild,
+  ) {
+    final versionCompare = _compareVersion(update.version, currentVersion);
+    if (versionCompare != 0) {
+      return versionCompare > 0;
+    }
+    return update.build > currentBuild;
+  }
+
+  Future<void> _downloadAndInstallUpdate(_UpdateInfo update) async {
+    if (!Platform.isAndroid) {
+      await _openUrl(update.fallbackUrl);
+      return;
+    }
+    try {
+      final canInstall =
+          await _updateChannel.invokeMethod<bool>('canInstallPackages') ??
+              false;
+      if (!canInstall) {
+        if (!mounted) {
+          return;
+        }
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('需要安装权限'),
+            content: const Text('请允许 NyaCourse 安装未知应用，授权后再点击下载并安装。'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _updateChannel.invokeMethod<void>(
+                    'openInstallPermissionSettings',
+                  );
+                },
+                child: const Text('去授权'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
+      final apkPath = await _downloadApk(update);
+      await _updateChannel.invokeMethod<void>('installApk', {'path': apkPath});
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('更新下载失败'),
+          content: const Text('可能是网络不稳定，可以稍后重试，或打开发布页手动下载。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('稍后'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _openUrl(update.fallbackUrl);
+              },
+              child: const Text('浏览器打开'),
+            ),
+          ],
+        ),
+      );
+    }
+  }
+
+  Future<String> _downloadApk(_UpdateInfo update) async {
+    final progress = ValueNotifier<double?>(null);
+    if (mounted) {
+      unawaited(
+        showDialog<void>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('正在下载更新'),
+            content: ValueListenableBuilder<double?>(
+              valueListenable: progress,
+              builder: (context, value, _) => Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  LinearProgressIndicator(value: value),
+                  const SizedBox(height: 12),
+                  Text(
+                    value == null
+                        ? '正在连接下载源...'
+                        : '已下载 ${(value * 100).clamp(0, 100).round()}%',
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    try {
+      final client = http.Client();
+      try {
+        final request = http.Request('GET', Uri.parse(update.apkUrl));
+        final response = await client.send(request).timeout(
+              const Duration(seconds: 20),
+            );
+        if (response.statusCode != 200) {
+          throw Exception('HTTP ${response.statusCode}');
+        }
+        final dir = await getTemporaryDirectory();
+        final fileName = update.apkName.isEmpty
+            ? 'NyaCourse-${update.versionText}.apk'
+            : update.apkName;
+        final file = File(p.join(dir.path, fileName));
+        final sink = file.openWrite();
+        var received = 0;
+        final total = response.contentLength;
+        await for (final chunk in response.stream) {
+          received += chunk.length;
+          sink.add(chunk);
+          if (total != null && total > 0) {
+            progress.value = received / total;
+          }
+        }
+        await sink.close();
+        progress.value = 1;
+        return file.path;
+      } finally {
+        client.close();
+      }
+    } finally {
+      progress.dispose();
+      if (mounted && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
+    }
+  }
+
   String _normalizeVersion(String value) {
-    return value.trim().replaceFirst(RegExp('^v', caseSensitive: false), '')
+    return value
+        .trim()
+        .replaceFirst(RegExp('^v', caseSensitive: false), '')
         .split('+')
         .first;
   }
@@ -1007,6 +1302,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               _ChangelogVersion(
+                version: '0.3.0+5',
+                items: [
+                  '新增今日课程桌面小组件，支持浅色、深色和纸张风格',
+                  '小组件按当天课表离线计算，跨天、上课和下课时自动刷新',
+                  '优化小组件文字层级、教室显示和课程列表窗口',
+                ],
+              ),
+              SizedBox(height: 14),
+              _ChangelogVersion(
                 version: '0.2.2+4',
                 items: [
                   '设置首页新增角色图、问候语、slogan 和考试提示',
@@ -1067,6 +1371,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return switch (section) {
       _SettingsSection.account => '账号与同步',
       _SettingsSection.schedule => '课表与提醒',
+      _SettingsSection.scheduleWidget => '桌面小组件',
       _SettingsSection.floatingPet => '悬浮球',
       _SettingsSection.appearance => '外观主题',
       _SettingsSection.data => '数据与缓存',
@@ -1079,6 +1384,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ThemeMode.system => '跟随系统',
       ThemeMode.light => '浅色',
       ThemeMode.dark => '深色',
+    };
+  }
+
+  String _scheduleWidgetAppearanceLabel(ScheduleWidgetAppearanceMode mode) {
+    return switch (mode) {
+      ScheduleWidgetAppearanceMode.system => '跟随系统',
+      ScheduleWidgetAppearanceMode.light => '浅色',
+      ScheduleWidgetAppearanceMode.dark => '深色',
+      ScheduleWidgetAppearanceMode.paper => '纸张',
     };
   }
 }
@@ -1116,8 +1430,7 @@ class _ModuleGridItem extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 16,
-                backgroundColor:
-                    Theme.of(context).colorScheme.primaryContainer,
+                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
                 foregroundColor:
                     Theme.of(context).colorScheme.onPrimaryContainer,
                 child: Icon(icon, size: 18),
@@ -1527,5 +1840,62 @@ class _AddColorDot extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _UpdateInfo {
+  const _UpdateInfo({
+    required this.version,
+    required this.build,
+    required this.title,
+    required this.notes,
+    required this.apkUrl,
+    required this.fallbackUrl,
+    required this.force,
+  });
+
+  factory _UpdateInfo.fromJson(Map<String, dynamic> json) {
+    final version = json['version']?.toString().trim() ?? '';
+    final apkUrl = json['apkUrl']?.toString().trim() ?? '';
+    if (version.isEmpty || apkUrl.isEmpty) {
+      throw const FormatException('update.json 缺少 version 或 apkUrl');
+    }
+    final notesValue = json['notes'];
+    final notes = switch (notesValue) {
+      final List list => list.map((item) => item.toString()).join('\n'),
+      final String value => value,
+      _ => '',
+    };
+    final buildValue = json['build'];
+    final build = buildValue is num
+        ? buildValue.toInt()
+        : int.tryParse(buildValue?.toString() ?? '') ?? 0;
+    return _UpdateInfo(
+      version: version,
+      build: build,
+      title: json['title']?.toString().trim() ?? 'NyaCourse $version',
+      notes: notes.trim(),
+      apkUrl: apkUrl,
+      fallbackUrl: json['fallbackUrl']?.toString().trim().isNotEmpty == true
+          ? json['fallbackUrl'].toString().trim()
+          : _SettingsScreenState._latestReleasePage,
+      force: json['force'] == true,
+    );
+  }
+
+  final String version;
+  final int build;
+  final String title;
+  final String notes;
+  final String apkUrl;
+  final String fallbackUrl;
+  final bool force;
+
+  String get versionText => build > 0 ? '$version+$build' : version;
+
+  String get apkName {
+    final segments = Uri.tryParse(apkUrl)?.pathSegments ?? const <String>[];
+    final lastSegment = segments.isEmpty ? '' : segments.last;
+    return lastSegment.toLowerCase().endsWith('.apk') ? lastSegment : '';
   }
 }

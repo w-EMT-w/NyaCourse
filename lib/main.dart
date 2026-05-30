@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import 'screens/home_screen.dart';
 import 'services/gdut_jw_client.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,8 +38,14 @@ class _GdutScheduleAppState extends State<GdutScheduleApp> {
       title: 'NyaCourse',
       debugShowCheckedModeBanner: false,
       themeMode: _themeMode,
-      theme: _theme(Brightness.light),
-      darkTheme: _theme(Brightness.dark),
+      theme: AppTheme.build(
+        brightness: Brightness.light,
+        seedColor: _themeSeed,
+      ),
+      darkTheme: AppTheme.build(
+        brightness: Brightness.dark,
+        seedColor: _themeSeed,
+      ),
       home: HomeScreen(
         client: _client,
         themeSeed: _themeSeed,
@@ -46,30 +53,6 @@ class _GdutScheduleAppState extends State<GdutScheduleApp> {
         themeMode: _themeMode,
         onThemeModeChanged: (mode) => setState(() => _themeMode = mode),
       ),
-    );
-  }
-
-  ThemeData _theme(Brightness brightness) {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: _themeSeed,
-      brightness: brightness,
-    );
-    return ThemeData(
-      colorScheme: scheme,
-      scaffoldBackgroundColor:
-          brightness == Brightness.light ? const Color(0xfff6f7f4) : null,
-      cardTheme: CardThemeData(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      filledButtonTheme: FilledButtonThemeData(
-        style: FilledButton.styleFrom(
-          minimumSize: const Size(0, 48),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-        ),
-      ),
-      useMaterial3: true,
     );
   }
 }

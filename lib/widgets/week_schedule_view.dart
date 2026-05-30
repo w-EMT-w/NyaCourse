@@ -29,6 +29,7 @@ class WeekScheduleView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final today = DateTime.now();
     final bySlot = {
       for (final course in courses)
         '${course.dayOfWeek}-${course.startSection}': course,
@@ -51,31 +52,14 @@ class WeekScheduleView extends StatelessWidget {
                   for (var day = 1; day <= 7; day++)
                     Expanded(
                       child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '周${_days[day - 1]}',
-                              maxLines: 1,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                            Text(
-                              _dateLabel(term.dateForWeekday(
-                                week: selectedWeek,
-                                weekday: day,
-                              )),
-                              maxLines: 1,
-                              style: Theme.of(context)
-                                  .textTheme
-                                  .labelSmall
-                                  ?.copyWith(
-                                    color: onSurface.withValues(alpha: 0.55),
-                                  ),
-                            ),
-                          ],
+                        child: _DayHeader(
+                          dayText: '周${_days[day - 1]}',
+                          date: term.dateForWeekday(
+                            week: selectedWeek,
+                            weekday: day,
+                          ),
+                          today: today,
+                          onSurface: onSurface,
                         ),
                       ),
                     ),
@@ -168,8 +152,64 @@ class WeekScheduleView extends StatelessWidget {
       },
     );
   }
+}
 
-  String _dateLabel(DateTime date) => '${date.month}/${date.day}';
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({
+    required this.dayText,
+    required this.date,
+    required this.today,
+    required this.onSurface,
+  });
+
+  final String dayText;
+  final DateTime date;
+  final DateTime today;
+  final Color onSurface;
+
+  @override
+  Widget build(BuildContext context) {
+    final isToday = DateUtils.isSameDay(date, today);
+    final primary = Theme.of(context).colorScheme.primary;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          dayText,
+          maxLines: 1,
+          style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: isToday ? primary : null,
+                fontWeight: isToday ? FontWeight.w900 : FontWeight.w700,
+              ),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isToday) ...[
+              Container(
+                width: 5,
+                height: 5,
+                decoration: BoxDecoration(
+                  color: primary,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 3),
+            ],
+            Text(
+              '${date.month}/${date.day}',
+              maxLines: 1,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color:
+                        isToday ? primary : onSurface.withValues(alpha: 0.55),
+                    fontWeight: isToday ? FontWeight.w900 : FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
 class _CourseBlock extends StatelessWidget {
@@ -244,8 +284,7 @@ class _CourseBlock extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.labelSmall?.copyWith(
                               fontSize: compact ? 9.5 : 10.5,
-                              color:
-                                  palette.foreground.withValues(alpha: 0.84),
+                              color: palette.foreground.withValues(alpha: 0.84),
                               height: 1.02,
                             ),
                       ),

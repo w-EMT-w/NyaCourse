@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_medium_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg_light"
+    android:padding="16dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginBottom="6dp">
+
+        <TextView
+            android:id="@+id/tv_date_medium"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#E6000000"
+            android:fontFamily="sans-serif-medium"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:text="今天 · 周一"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/tv_medium_state"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:textColor="#66718096"
+            android:textSize="10sp"
+            android:text="今日课程"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <ImageView
+            android:id="@+id/iv_medium_calendar"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/ic_widget_calendar"
+            android:contentDescription="@null" />
+    </LinearLayout>
+
+    <TextView
+        android:id="@+id/tv_empty_medium"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:textColor="#66FFFFFF"
+        android:textSize="12sp"
+        android:text="暂无课程安排"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:id="@+id/row_0"
+        style="@style/WidgetCourseRow">
+
+        <LinearLayout style="@style/WidgetCourseMainLine">
+            <TextView android:id="@+id/dot_0" style="@style/WidgetCourseDot" />
+            <TextView android:id="@+id/time_0" style="@style/WidgetCourseStartTime" />
+            <TextView android:id="@+id/name_0" style="@style/WidgetCourseName" />
+            <TextView android:id="@+id/room_0" style="@style/WidgetCourseRoom" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/period_0" style="@style/WidgetCoursePeriod" />
+        <TextView android:id="@+id/divider_0" style="@style/WidgetCourseDivider" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/row_1"
+        style="@style/WidgetCourseRow">
+
+        <LinearLayout style="@style/WidgetCourseMainLine">
+            <TextView android:id="@+id/dot_1" style="@style/WidgetCourseDot" />
+            <TextView android:id="@+id/time_1" style="@style/WidgetCourseStartTime" />
+            <TextView android:id="@+id/name_1" style="@style/WidgetCourseName" />
+            <TextView android:id="@+id/room_1" style="@style/WidgetCourseRoom" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/period_1" style="@style/WidgetCoursePeriod" />
+        <TextView android:id="@+id/divider_1" style="@style/WidgetCourseDivider" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/row_2"
+        style="@style/WidgetCourseRow">
+
+        <LinearLayout style="@style/WidgetCourseMainLine">
+            <TextView android:id="@+id/dot_2" style="@style/WidgetCourseDot" />
+            <TextView android:id="@+id/time_2" style="@style/WidgetCourseStartTime" />
+            <TextView android:id="@+id/name_2" style="@style/WidgetCourseName" />
+            <TextView android:id="@+id/room_2" style="@style/WidgetCourseRoom" />
+        </LinearLayout>
+
+        <TextView android:id="@+id/period_2" style="@style/WidgetCoursePeriod" />
+        <TextView android:id="@+id/divider_2" style="@style/WidgetCourseDivider" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,7 +1,7 @@
 name: gdut_class_schedule
 description: A Flutter timetable client for Guangdong University of Technology.
 publish_to: "none"
-version: 0.2.2+4
+version: 0.3.0+5
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -16,6 +16,7 @@ dependencies:
   encrypt: ^5.0.3
   image_picker: ^1.1.2
   flutter_secure_storage: ^9.2.4
+  home_widget: 0.7.0
   file_picker: ^11.0.2
   excel: ^4.0.6
   image_cropper: ^12.2.1
@@ -24,10 +25,9 @@ dependencies:
   path_provider: ^2.1.5
   url_launcher: ^6.3.2
   package_info_plus: ^9.0.1
+  path: ^1.9.0
 
 dev_dependencies:
-  integration_test:
-    sdk: flutter
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
